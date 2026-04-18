@@ -69,10 +69,12 @@ public enum KmipOperation {
 }
 
 public enum KmipObjectType {
-    public static let SymmetricKey: UInt32 = 0x00000001
-    public static let PublicKey:    UInt32 = 0x00000002
-    public static let PrivateKey:   UInt32 = 0x00000003
-    public static let Certificate:  UInt32 = 0x00000006
+    public static let Certificate:  UInt32 = 0x00000001
+    public static let SymmetricKey: UInt32 = 0x00000002
+    public static let PublicKey:    UInt32 = 0x00000003
+    public static let PrivateKey:   UInt32 = 0x00000004
+    public static let SplitKey:     UInt32 = 0x00000005
+    public static let Template:     UInt32 = 0x00000006
     public static let SecretData:   UInt32 = 0x00000007
     public static let OpaqueData:   UInt32 = 0x00000008
 }
