@@ -1,0 +1,17 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+jobs:
+  test:
+    name: Test (Swift ${{ matrix.swift-version }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        swift-version: ["5.9", "5.10", "6.0"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ matrix.swift-version }}
+      - run: swift test
