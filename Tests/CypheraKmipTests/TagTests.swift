@@ -39,7 +39,7 @@ final class TagTests: XCTestCase {
     func testOperationGet()      { XCTAssertEqual(KmipOperation.Get,      0x0000000A) }
     func testOperationActivate() { XCTAssertEqual(KmipOperation.Activate, 0x00000012) }
     func testOperationDestroy()  { XCTAssertEqual(KmipOperation.Destroy,  0x00000014) }
-    func testOperationCheck()    { XCTAssertEqual(KmipOperation.Check,    0x0000001C) }
+    func testOperationCheck()    { XCTAssertEqual(KmipOperation.Check,    0x00000009) }
 
     func testOperationNoDuplicates() {
         let values: [UInt32] = [

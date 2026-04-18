@@ -65,7 +65,7 @@ public enum KmipOperation {
     public static let Locate:   UInt32 = 0x00000008
     public static let Activate: UInt32 = 0x00000012
     public static let Destroy:  UInt32 = 0x00000014
-    public static let Check:    UInt32 = 0x0000001C
+    public static let Check:    UInt32 = 0x00000009
 }
 
 public enum KmipObjectType {
