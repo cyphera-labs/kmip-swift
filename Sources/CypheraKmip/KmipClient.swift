@@ -19,11 +19,11 @@
 //
 
 import Foundation
-#if canImport(Network)
-import Network
-#endif
+
+#if canImport(Security) && canImport(CFNetwork)
 
 /// KMIP client with mTLS support.
+/// Available on macOS/iOS only (uses CFStream for TLS).
 public class KmipClient {
     public let host: String
     public let port: Int
@@ -219,3 +219,5 @@ public class KmipClient {
         self.isConnected = true
     }
 }
+
+#endif // canImport(Security) && canImport(CFNetwork)

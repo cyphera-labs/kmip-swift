@@ -238,13 +238,14 @@ private func readUInt32BE(_ data: Data, offset: Int) -> UInt32 {
 }
 
 private func readInt64BE(_ data: Data, offset: Int) -> Int64 {
-    let raw: UInt64 = (UInt64(data[offset]) << 56) |
-        (UInt64(data[offset + 1]) << 48) |
-        (UInt64(data[offset + 2]) << 40) |
-        (UInt64(data[offset + 3]) << 32) |
-        (UInt64(data[offset + 4]) << 24) |
-        (UInt64(data[offset + 5]) << 16) |
-        (UInt64(data[offset + 6]) << 8) |
-        UInt64(data[offset + 7])
+    var raw: UInt64 = 0
+    raw |= UInt64(data[offset])     << 56
+    raw |= UInt64(data[offset + 1]) << 48
+    raw |= UInt64(data[offset + 2]) << 40
+    raw |= UInt64(data[offset + 3]) << 32
+    raw |= UInt64(data[offset + 4]) << 24
+    raw |= UInt64(data[offset + 5]) << 16
+    raw |= UInt64(data[offset + 6]) << 8
+    raw |= UInt64(data[offset + 7])
     return Int64(bitPattern: raw)
 }
