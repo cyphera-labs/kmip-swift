@@ -5,14 +5,11 @@ on:
     tags: ['v*']
 
 jobs:
-  publish:
-    name: Tag Release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  test:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Create GitHub Release
-        run: gh release create "${GITHUB_REF_NAME}" --generate-notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
