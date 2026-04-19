@@ -492,6 +492,87 @@ final class TtlvTests: XCTestCase {
         }
     }
 
+    // MARK: - Security hardening tests
+
+    func testRejectsDeclaredLengthExceedingBuffer() {
+        // Header claiming 1000 bytes of value, but only 10 bytes provided
+        var buf = Data(count: 18) // 8 header + 10 body
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01 // tag = 0x420001
+        buf[3] = 0x07 // type = TextString
+        buf[4] = 0x00; buf[5] = 0x00; buf[6] = 0x03; buf[7] = 0xE8 // length = 1000
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            XCTAssertTrue(error is TtlvError)
+        }
+    }
+
+    func testAcceptsDeclaredLengthThatExactlyFitsBuffer() throws {
+        let encoded = encodeInteger(tag: 0x420001, value: 42)
+        let decoded = try decodeTTLV(encoded)
+        if case .integer(let v) = decoded.value {
+            XCTAssertEqual(v, 42)
+        } else {
+            XCTFail("Expected integer value")
+        }
+    }
+
+    func testRejectsZeroLengthBuffer() {
+        XCTAssertThrowsError(try decodeTTLV(Data())) { error in
+            XCTAssertTrue(error is TtlvError)
+        }
+    }
+
+    func testRejectsStructuresNestedDeeperThan32Levels() {
+        // Build 33 levels of nesting
+        var inner = encodeInteger(tag: 0x420001, value: 42)
+        for _ in 0..<33 {
+            inner = encodeStructure(tag: 0x420001, children: [inner])
+        }
+        XCTAssertThrowsError(try decodeTTLV(Data(inner))) { error in
+            if let ttlvError = error as? TtlvError {
+                if case .maxDepthExceeded = ttlvError {
+                    // Expected
+                } else {
+                    XCTFail("Expected maxDepthExceeded error")
+                }
+            } else {
+                XCTFail("Expected TtlvError")
+            }
+        }
+    }
+
+    func testAcceptsStructuresNestedExactly32LevelsDeep() throws {
+        // Build 31 wrapping levels (root is depth 0, innermost is depth 31)
+        var inner = encodeInteger(tag: 0x420001, value: 42)
+        for _ in 0..<31 {
+            inner = encodeStructure(tag: 0x420001, children: [inner])
+        }
+        let decoded = try decodeTTLV(Data(inner))
+        XCTAssertEqual(decoded.type, TtlvType.structure.rawValue)
+    }
+
+    func testRejectsTruncatedHeader() {
+        let buf = Data([0x42, 0x00, 0x01, 0x02])
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            XCTAssertTrue(error is TtlvError)
+        }
+    }
+
+    func testHandlesIntegerWithWrongLengthSafely() {
+        // Header: tag=0x420001, type=Integer(0x02), length=3 (should be 4)
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = 0x02 // type = Integer
+        buf[4] = 0x00; buf[5] = 0x00; buf[6] = 0x00; buf[7] = 0x03 // length = 3
+        // Should either throw or handle safely — must not crash
+        do {
+            _ = try decodeTTLV(buf)
+        } catch {
+            // Any error is acceptable
+        }
+        // If we get here, the decoder handled it safely
+        XCTAssertTrue(true, "decoder did not crash on malformed integer length")
+    }
+
     // MARK: - Helper
 
     private func readLengthField(_ data: Data) -> UInt32 {
