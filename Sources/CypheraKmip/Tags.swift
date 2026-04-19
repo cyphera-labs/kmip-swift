@@ -3,7 +3,7 @@
 // CypheraKmip
 //
 // KMIP 1.4 tag, type, and enum constants.
-// Only the subset needed for Locate, Get, Create operations.
+// Full 27-operation support matching the Go reference.
 //
 // Reference: OASIS KMIP Specification v1.4
 // https://docs.oasis-open.org/kmip/spec/v1.4/kmip-spec-v1.4.html
@@ -57,15 +57,72 @@ public enum Tag {
 
     // Template
     public static let TemplateAttribute:    UInt32 = 0x420091
+
+    // Key pair
+    public static let PrivateKeyUniqueIdentifier: UInt32 = 0x420066
+    public static let PublicKeyUniqueIdentifier:  UInt32 = 0x42006F
+    public static let PublicKey:                  UInt32 = 0x42004E
+    public static let PrivateKey:                 UInt32 = 0x42004D
+
+    // Certificate
+    public static let Certificate:      UInt32 = 0x420021
+    public static let CertificateType:  UInt32 = 0x42001D
+    public static let CertificateValue: UInt32 = 0x42001E
+
+    // Crypto operations
+    public static let Data:              UInt32 = 0x420033
+    public static let IVCounterNonce:    UInt32 = 0x420047
+    public static let SignatureData:     UInt32 = 0x42004F
+    public static let MACData:           UInt32 = 0x420051
+    public static let ValidityIndicator: UInt32 = 0x420098
+
+    // Revocation
+    public static let RevocationReason:     UInt32 = 0x420082
+    public static let RevocationReasonCode: UInt32 = 0x420083
+
+    // Query
+    public static let QueryFunction: UInt32 = 0x420074
+
+    // State
+    public static let State: UInt32 = 0x42008D
+
+    // Derivation
+    public static let DerivationMethod:     UInt32 = 0x420031
+    public static let DerivationParameters: UInt32 = 0x420032
+    public static let DerivationData:       UInt32 = 0x420030
+
+    // Lease
+    public static let LeaseTime: UInt32 = 0x420049
 }
 
 public enum KmipOperation {
-    public static let Create:   UInt32 = 0x00000001
-    public static let Get:      UInt32 = 0x0000000A
-    public static let Locate:   UInt32 = 0x00000008
-    public static let Activate: UInt32 = 0x00000012
-    public static let Destroy:  UInt32 = 0x00000014
-    public static let Check:    UInt32 = 0x00000009
+    public static let Create:           UInt32 = 0x00000001
+    public static let CreateKeyPair:    UInt32 = 0x00000002
+    public static let Register:         UInt32 = 0x00000003
+    public static let ReKey:            UInt32 = 0x00000004
+    public static let DeriveKey:        UInt32 = 0x00000005
+    public static let Locate:           UInt32 = 0x00000008
+    public static let Check:            UInt32 = 0x00000009
+    public static let Get:              UInt32 = 0x0000000A
+    public static let GetAttributes:    UInt32 = 0x0000000B
+    public static let GetAttributeList: UInt32 = 0x0000000C
+    public static let AddAttribute:     UInt32 = 0x0000000D
+    public static let ModifyAttribute:  UInt32 = 0x0000000E
+    public static let DeleteAttribute:  UInt32 = 0x0000000F
+    public static let ObtainLease:      UInt32 = 0x00000010
+    public static let Activate:         UInt32 = 0x00000012
+    public static let Revoke:           UInt32 = 0x00000013
+    public static let Destroy:          UInt32 = 0x00000014
+    public static let Archive:          UInt32 = 0x00000015
+    public static let Recover:          UInt32 = 0x00000016
+    public static let Query:            UInt32 = 0x00000018
+    public static let Poll:             UInt32 = 0x0000001A
+    public static let DiscoverVersions: UInt32 = 0x0000001E
+    public static let Encrypt:          UInt32 = 0x0000001F
+    public static let Decrypt:          UInt32 = 0x00000020
+    public static let Sign:             UInt32 = 0x00000021
+    public static let SignatureVerify:  UInt32 = 0x00000022
+    public static let MAC:              UInt32 = 0x00000023
 }
 
 public enum KmipObjectType {

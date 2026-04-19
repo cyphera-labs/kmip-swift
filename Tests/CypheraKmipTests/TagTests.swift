@@ -4,6 +4,7 @@
 //
 // Tests verifying KMIP 1.4 spec constants: tags, operations,
 // object types, algorithms, key format types, usage masks.
+// Full 27-operation coverage.
 //
 
 import XCTest
@@ -32,21 +33,51 @@ final class TagTests: XCTestCase {
         XCTAssertEqual(Set(values).count, values.count)
     }
 
-    // MARK: - Operations (KMIP 1.4 Section 9.1.3.2.2)
+    // MARK: - Operations (KMIP 1.4 Section 9.1.3.2.2) — All 27
 
-    func testOperationCreate()   { XCTAssertEqual(KmipOperation.Create,   0x00000001) }
-    func testOperationLocate()   { XCTAssertEqual(KmipOperation.Locate,   0x00000008) }
-    func testOperationGet()      { XCTAssertEqual(KmipOperation.Get,      0x0000000A) }
-    func testOperationActivate() { XCTAssertEqual(KmipOperation.Activate, 0x00000012) }
-    func testOperationDestroy()  { XCTAssertEqual(KmipOperation.Destroy,  0x00000014) }
-    func testOperationCheck()    { XCTAssertEqual(KmipOperation.Check,    0x00000009) }
+    func testOperationCreate()           { XCTAssertEqual(KmipOperation.Create,           0x00000001) }
+    func testOperationCreateKeyPair()    { XCTAssertEqual(KmipOperation.CreateKeyPair,    0x00000002) }
+    func testOperationRegister()         { XCTAssertEqual(KmipOperation.Register,         0x00000003) }
+    func testOperationReKey()            { XCTAssertEqual(KmipOperation.ReKey,             0x00000004) }
+    func testOperationDeriveKey()        { XCTAssertEqual(KmipOperation.DeriveKey,         0x00000005) }
+    func testOperationLocate()           { XCTAssertEqual(KmipOperation.Locate,            0x00000008) }
+    func testOperationCheck()            { XCTAssertEqual(KmipOperation.Check,             0x00000009) }
+    func testOperationGet()              { XCTAssertEqual(KmipOperation.Get,               0x0000000A) }
+    func testOperationGetAttributes()    { XCTAssertEqual(KmipOperation.GetAttributes,     0x0000000B) }
+    func testOperationGetAttributeList() { XCTAssertEqual(KmipOperation.GetAttributeList,  0x0000000C) }
+    func testOperationAddAttribute()     { XCTAssertEqual(KmipOperation.AddAttribute,      0x0000000D) }
+    func testOperationModifyAttribute()  { XCTAssertEqual(KmipOperation.ModifyAttribute,   0x0000000E) }
+    func testOperationDeleteAttribute()  { XCTAssertEqual(KmipOperation.DeleteAttribute,   0x0000000F) }
+    func testOperationObtainLease()      { XCTAssertEqual(KmipOperation.ObtainLease,       0x00000010) }
+    func testOperationActivate()         { XCTAssertEqual(KmipOperation.Activate,           0x00000012) }
+    func testOperationRevoke()           { XCTAssertEqual(KmipOperation.Revoke,             0x00000013) }
+    func testOperationDestroy()          { XCTAssertEqual(KmipOperation.Destroy,            0x00000014) }
+    func testOperationArchive()          { XCTAssertEqual(KmipOperation.Archive,            0x00000015) }
+    func testOperationRecover()          { XCTAssertEqual(KmipOperation.Recover,            0x00000016) }
+    func testOperationQuery()            { XCTAssertEqual(KmipOperation.Query,              0x00000018) }
+    func testOperationPoll()             { XCTAssertEqual(KmipOperation.Poll,               0x0000001A) }
+    func testOperationDiscoverVersions() { XCTAssertEqual(KmipOperation.DiscoverVersions,   0x0000001E) }
+    func testOperationEncrypt()          { XCTAssertEqual(KmipOperation.Encrypt,            0x0000001F) }
+    func testOperationDecrypt()          { XCTAssertEqual(KmipOperation.Decrypt,            0x00000020) }
+    func testOperationSign()             { XCTAssertEqual(KmipOperation.Sign,               0x00000021) }
+    func testOperationSignatureVerify()  { XCTAssertEqual(KmipOperation.SignatureVerify,    0x00000022) }
+    func testOperationMAC()              { XCTAssertEqual(KmipOperation.MAC,                0x00000023) }
 
     func testOperationNoDuplicates() {
         let values: [UInt32] = [
-            KmipOperation.Create, KmipOperation.Locate, KmipOperation.Get,
-            KmipOperation.Activate, KmipOperation.Destroy, KmipOperation.Check,
+            KmipOperation.Create, KmipOperation.CreateKeyPair, KmipOperation.Register,
+            KmipOperation.ReKey, KmipOperation.DeriveKey, KmipOperation.Locate,
+            KmipOperation.Check, KmipOperation.Get, KmipOperation.GetAttributes,
+            KmipOperation.GetAttributeList, KmipOperation.AddAttribute,
+            KmipOperation.ModifyAttribute, KmipOperation.DeleteAttribute,
+            KmipOperation.ObtainLease, KmipOperation.Activate, KmipOperation.Revoke,
+            KmipOperation.Destroy, KmipOperation.Archive, KmipOperation.Recover,
+            KmipOperation.Query, KmipOperation.Poll, KmipOperation.DiscoverVersions,
+            KmipOperation.Encrypt, KmipOperation.Decrypt, KmipOperation.Sign,
+            KmipOperation.SignatureVerify, KmipOperation.MAC,
         ]
         XCTAssertEqual(Set(values).count, values.count)
+        XCTAssertEqual(values.count, 27, "Should have exactly 27 operations")
     }
 
     // MARK: - ResultStatus
@@ -128,6 +159,10 @@ final class TagTests: XCTestCase {
         XCTAssertEqual(KmipUsageMask.Encrypt | KmipUsageMask.Decrypt, 0x0000000C)
     }
 
+    func testUsageMaskSignVerifyCombines() {
+        XCTAssertEqual(KmipUsageMask.Sign | KmipUsageMask.Verify, 0x00000003)
+    }
+
     func testUsageMaskAllDistinctBits() {
         let values: [UInt32] = [
             KmipUsageMask.Sign, KmipUsageMask.Verify,
@@ -143,7 +178,7 @@ final class TagTests: XCTestCase {
         }
     }
 
-    // MARK: - Tag values in KMIP range
+    // MARK: - New tag values in KMIP range
 
     func testAllTagValuesInKmipRange() {
         let allTags: [(String, UInt32)] = [
@@ -179,6 +214,34 @@ final class TagTests: XCTestCase {
             ("CryptographicLength", Tag.CryptographicLength),
             ("CryptographicUsageMask", Tag.CryptographicUsageMask),
             ("TemplateAttribute", Tag.TemplateAttribute),
+            // Key pair
+            ("PrivateKeyUniqueIdentifier", Tag.PrivateKeyUniqueIdentifier),
+            ("PublicKeyUniqueIdentifier", Tag.PublicKeyUniqueIdentifier),
+            ("PublicKey", Tag.PublicKey),
+            ("PrivateKey", Tag.PrivateKey),
+            // Certificate
+            ("Certificate", Tag.Certificate),
+            ("CertificateType", Tag.CertificateType),
+            ("CertificateValue", Tag.CertificateValue),
+            // Crypto operations
+            ("Data", Tag.Data),
+            ("IVCounterNonce", Tag.IVCounterNonce),
+            ("SignatureData", Tag.SignatureData),
+            ("MACData", Tag.MACData),
+            ("ValidityIndicator", Tag.ValidityIndicator),
+            // Revocation
+            ("RevocationReason", Tag.RevocationReason),
+            ("RevocationReasonCode", Tag.RevocationReasonCode),
+            // Query
+            ("QueryFunction", Tag.QueryFunction),
+            // State
+            ("State", Tag.State),
+            // Derivation
+            ("DerivationMethod", Tag.DerivationMethod),
+            ("DerivationParameters", Tag.DerivationParameters),
+            ("DerivationData", Tag.DerivationData),
+            // Lease
+            ("LeaseTime", Tag.LeaseTime),
         ]
         for (name, value) in allTags {
             XCTAssertTrue(
@@ -203,7 +266,24 @@ final class TagTests: XCTestCase {
             Tag.KeyValue, Tag.KeyMaterial,
             Tag.CryptographicAlgorithm, Tag.CryptographicLength,
             Tag.CryptographicUsageMask, Tag.TemplateAttribute,
+            Tag.PrivateKeyUniqueIdentifier, Tag.PublicKeyUniqueIdentifier,
+            Tag.PublicKey, Tag.PrivateKey,
+            Tag.Certificate, Tag.CertificateType, Tag.CertificateValue,
+            Tag.Data, Tag.IVCounterNonce, Tag.SignatureData, Tag.MACData,
+            Tag.ValidityIndicator,
+            Tag.RevocationReason, Tag.RevocationReasonCode,
+            Tag.QueryFunction, Tag.State,
+            Tag.DerivationMethod, Tag.DerivationParameters, Tag.DerivationData,
+            Tag.LeaseTime,
         ]
         XCTAssertEqual(Set(values).count, values.count)
     }
+
+    // MARK: - Algorithm Resolution
+
+    func testResolveAlgorithmAES()     { XCTAssertEqual(resolveAlgorithm("AES"), KmipAlgorithm.AES) }
+    func testResolveAlgorithmRSA()     { XCTAssertEqual(resolveAlgorithm("rsa"), KmipAlgorithm.RSA) }
+    func testResolveAlgorithmECDSA()   { XCTAssertEqual(resolveAlgorithm("ecdsa"), KmipAlgorithm.ECDSA) }
+    func testResolveAlgorithm3DES()    { XCTAssertEqual(resolveAlgorithm("3DES"), KmipAlgorithm.TripleDES) }
+    func testResolveAlgorithmUnknown() { XCTAssertEqual(resolveAlgorithm("unknown"), 0) }
 }
