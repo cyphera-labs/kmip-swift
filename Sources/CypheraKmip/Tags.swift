@@ -161,9 +161,11 @@ public enum KmipAlgorithm {
     public static let DSA:        UInt32 = 0x00000005
     public static let ECDSA:      UInt32 = 0x00000006
     public static let HMACSHA1:   UInt32 = 0x00000007
-    public static let HMACSHA256: UInt32 = 0x00000008
-    public static let HMACSHA384: UInt32 = 0x00000009
-    public static let HMACSHA512: UInt32 = 0x0000000A
+    public static let HMACSHA224: UInt32 = 0x00000008
+    public static let HMACSHA256: UInt32 = 0x00000009
+    public static let HMACSHA384: UInt32 = 0x0000000A
+    public static let HMACSHA512: UInt32 = 0x0000000B
+    public static let HMACMD5:    UInt32 = 0x0000000C
 }
 
 public enum KmipNameType {
@@ -179,6 +181,8 @@ public enum KmipUsageMask {
     public static let WrapKey:      UInt32 = 0x00000010
     public static let UnwrapKey:    UInt32 = 0x00000020
     public static let Export:       UInt32 = 0x00000040
-    public static let DeriveKey:    UInt32 = 0x00000100
+    public static let MACGenerate:  UInt32 = 0x00000080
+    public static let MACVerify:    UInt32 = 0x00000100
+    public static let DeriveKey:    UInt32 = 0x00000200
     public static let KeyAgreement: UInt32 = 0x00000800
 }

@@ -104,16 +104,19 @@ final class TagTests: XCTestCase {
     func testAlgorithmDSA()        { XCTAssertEqual(KmipAlgorithm.DSA,        0x00000005) }
     func testAlgorithmECDSA()      { XCTAssertEqual(KmipAlgorithm.ECDSA,      0x00000006) }
     func testAlgorithmHMACSHA1()   { XCTAssertEqual(KmipAlgorithm.HMACSHA1,   0x00000007) }
-    func testAlgorithmHMACSHA256() { XCTAssertEqual(KmipAlgorithm.HMACSHA256, 0x00000008) }
-    func testAlgorithmHMACSHA384() { XCTAssertEqual(KmipAlgorithm.HMACSHA384, 0x00000009) }
-    func testAlgorithmHMACSHA512() { XCTAssertEqual(KmipAlgorithm.HMACSHA512, 0x0000000A) }
+    func testAlgorithmHMACSHA224() { XCTAssertEqual(KmipAlgorithm.HMACSHA224, 0x00000008) }
+    func testAlgorithmHMACSHA256() { XCTAssertEqual(KmipAlgorithm.HMACSHA256, 0x00000009) }
+    func testAlgorithmHMACSHA384() { XCTAssertEqual(KmipAlgorithm.HMACSHA384, 0x0000000A) }
+    func testAlgorithmHMACSHA512() { XCTAssertEqual(KmipAlgorithm.HMACSHA512, 0x0000000B) }
+    func testAlgorithmHMACMD5()    { XCTAssertEqual(KmipAlgorithm.HMACMD5,    0x0000000C) }
 
     func testAlgorithmNoDuplicates() {
         let values: [UInt32] = [
             KmipAlgorithm.DES, KmipAlgorithm.TripleDES, KmipAlgorithm.AES,
             KmipAlgorithm.RSA, KmipAlgorithm.DSA, KmipAlgorithm.ECDSA,
-            KmipAlgorithm.HMACSHA1, KmipAlgorithm.HMACSHA256,
-            KmipAlgorithm.HMACSHA384, KmipAlgorithm.HMACSHA512,
+            KmipAlgorithm.HMACSHA1, KmipAlgorithm.HMACSHA224,
+            KmipAlgorithm.HMACSHA256, KmipAlgorithm.HMACSHA384,
+            KmipAlgorithm.HMACSHA512, KmipAlgorithm.HMACMD5,
         ]
         XCTAssertEqual(Set(values).count, values.count)
     }
@@ -152,7 +155,9 @@ final class TagTests: XCTestCase {
     func testUsageMaskWrapKey()      { XCTAssertEqual(KmipUsageMask.WrapKey,      0x00000010) }
     func testUsageMaskUnwrapKey()    { XCTAssertEqual(KmipUsageMask.UnwrapKey,    0x00000020) }
     func testUsageMaskExport()       { XCTAssertEqual(KmipUsageMask.Export,       0x00000040) }
-    func testUsageMaskDeriveKey()    { XCTAssertEqual(KmipUsageMask.DeriveKey,    0x00000100) }
+    func testUsageMaskMACGenerate()  { XCTAssertEqual(KmipUsageMask.MACGenerate,  0x00000080) }
+    func testUsageMaskMACVerify()    { XCTAssertEqual(KmipUsageMask.MACVerify,    0x00000100) }
+    func testUsageMaskDeriveKey()    { XCTAssertEqual(KmipUsageMask.DeriveKey,    0x00000200) }
     func testUsageMaskKeyAgreement() { XCTAssertEqual(KmipUsageMask.KeyAgreement, 0x00000800) }
 
     func testUsageMaskEncryptDecryptCombines() {
