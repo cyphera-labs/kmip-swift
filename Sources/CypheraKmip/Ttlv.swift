@@ -136,8 +136,19 @@ public func encodeDateTime(tag: UInt32, value: Int64) -> Data {
 
 // MARK: - Decoding
 
+/// Maximum nesting depth for TTLV structures.
+private let maxDecodeDepth = 32
+
 /// Decode a TTLV buffer into a parsed tree.
 public func decodeTTLV(_ buf: Data, offset: Int = 0) throws -> TtlvItem {
+    return try decodeTTLVDepth(buf, offset: offset, depth: 0)
+}
+
+private func decodeTTLVDepth(_ buf: Data, offset: Int, depth: Int) throws -> TtlvItem {
+    guard depth <= maxDecodeDepth else {
+        throw TtlvError.maxDepthExceeded
+    }
+
     guard buf.count - offset >= 8 else {
         throw TtlvError.bufferTooShort
     }
@@ -154,6 +165,11 @@ public func decodeTTLV(_ buf: Data, offset: Int = 0) throws -> TtlvItem {
     let totalLength = 8 + padded
     let valueStart = offset + 8
 
+    // Bounds check: ensure declared length fits within buffer.
+    guard valueStart + padded <= buf.count else {
+        throw TtlvError.lengthExceedsBuffer(declared: length, available: buf.count - valueStart)
+    }
+
     let value: TtlvValue
 
     switch type {
@@ -162,7 +178,7 @@ public func decodeTTLV(_ buf: Data, offset: Int = 0) throws -> TtlvItem {
         var pos = valueStart
         let end = valueStart + length
         while pos < end {
-            let child = try decodeTTLV(buf, offset: pos)
+            let child = try decodeTTLVDepth(buf, offset: pos, depth: depth + 1)
             children.append(child)
             pos += child.totalLength
         }
@@ -218,6 +234,8 @@ public func findChildren(_ decoded: TtlvItem, tag: UInt32) -> [TtlvItem] {
 
 public enum TtlvError: Error {
     case bufferTooShort
+    case lengthExceedsBuffer(declared: Int, available: Int)
+    case maxDepthExceeded
 }
 
 // MARK: - Helpers

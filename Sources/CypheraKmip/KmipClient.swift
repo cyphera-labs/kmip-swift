@@ -23,12 +23,16 @@ import Foundation
 
 #if canImport(Security) && canImport(CFNetwork)
 
+/// Maximum KMIP response size (16MB).
+private let maxResponseSize = 16 * 1024 * 1024
+
 /// KMIP client with mTLS support.
 /// Available on macOS/iOS only (uses CFStream for TLS).
 public class KmipClient {
     public let host: String
     public let port: Int
     public let timeout: TimeInterval
+    public let insecureSkipVerify: Bool
 
     private let clientCertPath: String
     private let clientKeyPath: String
@@ -45,19 +49,22 @@ public class KmipClient {
     ///   - port: KMIP server port (default 5696).
     ///   - clientCert: Path to client certificate PEM file.
     ///   - clientKey: Path to client private key PEM file.
-    ///   - caCert: Path to CA certificate PEM file (optional).
+    ///   - caCert: Path to CA certificate PEM file (optional, uses system roots if not set).
     ///   - timeout: Connection timeout in seconds (default 10).
+    ///   - insecureSkipVerify: DANGER: disables server certificate verification (default false).
     public init(
         host: String,
         clientCert: String,
         clientKey: String,
         port: Int = 5696,
         caCert: String? = nil,
-        timeout: TimeInterval = 10
+        timeout: TimeInterval = 10,
+        insecureSkipVerify: Bool = false
     ) {
         self.host = host
         self.port = port
         self.timeout = timeout
+        self.insecureSkipVerify = insecureSkipVerify
         self.clientCertPath = clientCert
         self.clientKeyPath = clientKey
         self.caCertPath = caCert
@@ -489,19 +496,51 @@ public class KmipClient {
             return output.write(base, maxLength: request.count)
         }
         guard written == request.count else {
+            markStale() // Mark connection as stale on write error.
             throw KmipError.connectionFailed("Failed to write request")
         }
 
         // Read TTLV header (8 bytes) to determine total length
-        let header = try recvExact(8)
+        let header: Data
+        do {
+            header = try recvExact(8)
+        } catch {
+            markStale() // Mark connection as stale on read error.
+            throw error
+        }
+
         let valueLength = Int(
             (UInt32(header[4]) << 24) |
             (UInt32(header[5]) << 16) |
             (UInt32(header[6]) << 8) |
             UInt32(header[7])
         )
-        let body = try recvExact(valueLength)
+
+        // Validate response size before allocating.
+        if valueLength > maxResponseSize {
+            markStale()
+            throw KmipError.connectionFailed(
+                "KMIP: response too large (\(valueLength) bytes, max \(maxResponseSize))")
+        }
+
+        let body: Data
+        do {
+            body = try recvExact(valueLength)
+        } catch {
+            markStale() // Mark connection as stale on read error.
+            throw error
+        }
+
         return header + body
+    }
+
+    /// Mark the current connection as stale so the next call reconnects.
+    private func markStale() {
+        inputStream?.close()
+        outputStream?.close()
+        inputStream = nil
+        outputStream = nil
+        isConnected = false
     }
 
     private func recvExact(_ n: Int) throws -> Data {
@@ -546,11 +585,16 @@ public class KmipClient {
             throw KmipError.connectionFailed("Failed to create streams")
         }
 
-        // Configure TLS
-        let sslSettings: [String: Any] = [
+        // Configure TLS -- always verify certificates by default (uses system roots).
+        // Only disable validation if explicitly opted in via insecureSkipVerify.
+        var sslSettings: [String: Any] = [
             kCFStreamSSLLevel as String: kCFStreamSocketSecurityLevelNegotiatedSSL,
             kCFStreamSSLPeerName as String: host,
         ]
+
+        if insecureSkipVerify {
+            sslSettings[kCFStreamSSLValidatesCertificateChain as String] = false
+        }
 
         input.setProperty(sslSettings, forKey: .init(kCFStreamPropertySSLSettings as String))
         output.setProperty(sslSettings, forKey: .init(kCFStreamPropertySSLSettings as String))
