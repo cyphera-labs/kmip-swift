@@ -71,7 +71,7 @@ public enum Tag {
 
     // Crypto operations
     public static let Data:              UInt32 = 0x420033
-    public static let IVCounterNonce:    UInt32 = 0x420047
+    public static let IVCounterNonce:    UInt32 = 0x42003D
     public static let SignatureData:     UInt32 = 0x42004F
     public static let MACData:           UInt32 = 0x420051
     public static let ValidityIndicator: UInt32 = 0x420098
