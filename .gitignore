@@ -4,3 +4,11 @@
 xcuserdata/
 DerivedData/
 Package.resolved
+
+# Private keys and certificates — never commit.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore

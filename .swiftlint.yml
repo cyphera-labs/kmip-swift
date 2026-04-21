@@ -1,0 +1,31 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+  - .swiftpm
+
+opt_in_rules:
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - prohibited_super_call
+  - unused_declaration
+  - strict_fileprivate
+
+disabled_rules:
+  - line_length          # TTLV byte arrays look cleaner on one line
+  - trailing_whitespace  # checked by editorconfig
+  - identifier_name      # KMIP tag names like `IVCounterNonce` are spec-driven
+
+force_unwrapping:
+  severity: error
+force_cast:
+  severity: error
+force_try:
+  severity: warning
+
+# Security-relevant: flag lingering TODOs that might hide unfinished hardening.
+todo:
+  severity: warning

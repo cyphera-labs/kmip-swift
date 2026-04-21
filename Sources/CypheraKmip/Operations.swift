@@ -451,7 +451,9 @@ public func buildMACRequest(uniqueId: String, data: Data) -> Data {
 // MARK: - Response Types
 
 /// Parsed KMIP response.
-public struct KmipResponse {
+public struct KmipResponse: @unchecked Sendable {
+    // TtlvItem holds recursive enum values; marking @unchecked Sendable avoids
+    // forcing Sendable through the entire TTLV tree for Swift 6 strict mode.
     public let operation: UInt32?
     public let resultStatus: UInt32?
     public let resultReason: UInt32?
@@ -513,7 +515,7 @@ public func parseResponse(_ data: Data) throws -> KmipResponse {
 // MARK: - Locate
 
 /// Parsed Locate response.
-public struct LocateResult {
+public struct LocateResult: Sendable {
     public let uniqueIdentifiers: [String]
 }
 
@@ -529,7 +531,11 @@ public func parseLocatePayload(_ payload: TtlvItem) -> LocateResult {
 // MARK: - Get
 
 /// Parsed Get response.
-public struct GetResult {
+///
+/// `keyMaterial` holds raw bytes for backwards compatibility. For stronger
+/// zeroing guarantees, use `KmipClient.getSecure(_:)` which returns a
+/// `SecureKeyMaterial` that wipes its buffer on deinit.
+public struct GetResult: Sendable {
     public let objectType: UInt32?
     public let uniqueIdentifier: String?
     public let keyMaterial: Data?
@@ -565,7 +571,7 @@ public func parseGetPayload(_ payload: TtlvItem) -> GetResult {
 // MARK: - Create
 
 /// Parsed Create response.
-public struct CreateResult {
+public struct CreateResult: Sendable {
     public let objectType: UInt32?
     public let uniqueIdentifier: String?
 }
@@ -589,7 +595,7 @@ public func parseCreatePayload(_ payload: TtlvItem) -> CreateResult {
 // MARK: - Check
 
 /// Parsed Check response.
-public struct CheckResult {
+public struct CheckResult: Sendable {
     public let uniqueIdentifier: String?
 }
 
@@ -605,7 +611,7 @@ public func parseCheckPayload(_ payload: TtlvItem) -> CheckResult {
 // MARK: - ReKey
 
 /// Parsed ReKey response.
-public struct ReKeyResult {
+public struct ReKeyResult: Sendable {
     public let uniqueIdentifier: String?
 }
 
@@ -621,7 +627,7 @@ public func parseReKeyPayload(_ payload: TtlvItem) -> ReKeyResult {
 // MARK: - CreateKeyPair
 
 /// Parsed CreateKeyPair response.
-public struct CreateKeyPairResult {
+public struct CreateKeyPairResult: Sendable {
     public let privateKeyUID: String?
     public let publicKeyUID: String?
 }
@@ -643,7 +649,7 @@ public func parseCreateKeyPairPayload(_ payload: TtlvItem) -> CreateKeyPairResul
 // MARK: - DeriveKey
 
 /// Parsed DeriveKey response.
-public struct DeriveKeyResult {
+public struct DeriveKeyResult: Sendable {
     public let uniqueIdentifier: String?
 }
 
@@ -659,7 +665,7 @@ public func parseDeriveKeyPayload(_ payload: TtlvItem) -> DeriveKeyResult {
 // MARK: - Encrypt
 
 /// Parsed Encrypt response.
-public struct EncryptResult {
+public struct EncryptResult: Sendable {
     public let data: Data?
     public let nonce: Data?
 }
@@ -681,7 +687,7 @@ public func parseEncryptPayload(_ payload: TtlvItem) -> EncryptResult {
 // MARK: - Decrypt
 
 /// Parsed Decrypt response.
-public struct DecryptResult {
+public struct DecryptResult: Sendable {
     public let data: Data?
 }
 
@@ -697,7 +703,7 @@ public func parseDecryptPayload(_ payload: TtlvItem) -> DecryptResult {
 // MARK: - Sign
 
 /// Parsed Sign response.
-public struct SignResult {
+public struct SignResult: Sendable {
     public let signatureData: Data?
 }
 
@@ -713,7 +719,7 @@ public func parseSignPayload(_ payload: TtlvItem) -> SignResult {
 // MARK: - SignatureVerify
 
 /// Parsed SignatureVerify response.
-public struct SignatureVerifyResult {
+public struct SignatureVerifyResult: Sendable {
     public let valid: Bool
 }
 
@@ -730,7 +736,7 @@ public func parseSignatureVerifyPayload(_ payload: TtlvItem) -> SignatureVerifyR
 // MARK: - MAC
 
 /// Parsed MAC response.
-public struct MACResult {
+public struct MACResult: Sendable {
     public let macData: Data?
 }
 
@@ -746,7 +752,7 @@ public func parseMACPayload(_ payload: TtlvItem) -> MACResult {
 // MARK: - Query
 
 /// Parsed Query response.
-public struct QueryResult {
+public struct QueryResult: Sendable {
     public let operations: [UInt32]
     public let objectTypes: [UInt32]
 }
@@ -766,8 +772,8 @@ public func parseQueryPayload(_ payload: TtlvItem) -> QueryResult {
 // MARK: - DiscoverVersions
 
 /// Parsed DiscoverVersions response.
-public struct DiscoverVersionsResult {
-    public struct Version {
+public struct DiscoverVersionsResult: Sendable {
+    public struct Version: Sendable {
         public let major: Int32
         public let minor: Int32
     }
@@ -795,13 +801,18 @@ public func parseDiscoverVersionsPayload(_ payload: TtlvItem) -> DiscoverVersion
 // MARK: - Errors
 
 /// KMIP errors.
-public enum KmipError: Error {
+public enum KmipError: Error, Sendable {
     case unexpectedTag(expected: UInt32, got: UInt32)
     case noBatchItem
     case operationFailed(message: String, status: UInt32?, reason: UInt32?)
     case connectionFailed(String)
     case noKeyFound(String)
     case noKeyMaterial(String)
+    case invalidParameter(String)
+    case unexpectedType(String)
+    case tlsValidationFailed(String)
+    case certificatePinMismatch
+    case trustDelegateRejected
 }
 
 // MARK: - Algorithm Resolution

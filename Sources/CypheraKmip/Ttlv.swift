@@ -110,7 +110,7 @@ public func encodeEnum(tag: UInt32, value: UInt32) -> Data {
 
 /// Encode a boolean.
 public func encodeBoolean(tag: UInt32, value: Bool) -> Data {
-    var val: Int64 = value ? 1 : 0
+    let val: Int64 = value ? 1 : 0
     var bigEndian = val.bigEndian
     let data = Data(bytes: &bigEndian, count: 8)
     return encodeTTLV(tag: tag, type: TtlvType.boolean.rawValue, value: data)
