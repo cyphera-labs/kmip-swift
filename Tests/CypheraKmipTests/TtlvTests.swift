@@ -573,6 +573,168 @@ final class TtlvTests: XCTestCase {
         XCTAssertTrue(true, "decoder did not crash on malformed integer length")
     }
 
+    // MARK: - Per-type length validation (C1/C2 regression)
+
+    /// C1/C2: Integer with length=1 used to crash in readInt32BE via fatalError.
+    /// Must throw invalidLength cleanly.
+    func testRejectsIntegerWithLengthLessThanFour() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.integer.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 1 // length = 1
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            guard let err = error as? TtlvError, case .invalidLength(_, let expected, let actual) = err else {
+                XCTFail("Expected invalidLength, got \(error)"); return
+            }
+            XCTAssertEqual(expected, 4)
+            XCTAssertEqual(actual, 1)
+        }
+    }
+
+    func testRejectsIntegerWithLengthGreaterThanFour() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.integer.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 5
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .invalidLength = err { return }
+            XCTFail("Expected invalidLength, got \(error)")
+        }
+    }
+
+    func testRejectsLongIntegerWithWrongLength() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.longInteger.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 4
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .invalidLength = err { return }
+            XCTFail("Expected invalidLength, got \(error)")
+        }
+    }
+
+    func testRejectsEnumerationWithWrongLength() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.enumeration.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 8
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .invalidLength = err { return }
+            XCTFail("Expected invalidLength, got \(error)")
+        }
+    }
+
+    func testRejectsBooleanWithWrongLength() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.boolean.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 4
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .invalidLength = err { return }
+            XCTFail("Expected invalidLength, got \(error)")
+        }
+    }
+
+    func testRejectsDateTimeWithWrongLength() {
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.dateTime.rawValue
+        buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 4
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .invalidLength = err { return }
+            XCTFail("Expected invalidLength, got \(error)")
+        }
+    }
+
+    func testRejectsLengthExceeding16MiB() {
+        var buf = Data(count: 24)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.byteString.rawValue
+        // length = 0x01000001 → one byte past 16 MiB
+        buf[4] = 0x01; buf[5] = 0x00; buf[6] = 0x00; buf[7] = 0x01
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .lengthExceedsLimit = err { return }
+            XCTFail("Expected lengthExceedsLimit, got \(error)")
+        }
+    }
+
+    func testRejectsLengthWithHighBitSet() {
+        // 0x80000000 would overflow when converted to Int on 32-bit and is far past the limit.
+        var buf = Data(count: 16)
+        buf[0] = 0x42; buf[1] = 0x00; buf[2] = 0x01
+        buf[3] = TtlvType.byteString.rawValue
+        buf[4] = 0x80; buf[5] = 0x00; buf[6] = 0x00; buf[7] = 0x00
+        XCTAssertThrowsError(try decodeTTLV(buf)) { error in
+            if let err = error as? TtlvError, case .lengthExceedsLimit = err { return }
+            XCTFail("Expected lengthExceedsLimit, got \(error)")
+        }
+    }
+
+    func testRejectsStructureChildOverrun() {
+        // Outer structure claims length = 24, containing two children declared as Integer(length=4).
+        // The first child's padded totalLength (16) leaves room only for one more header (8),
+        // not a full second 16-byte item. A declared length=12 on the second child would overrun.
+        // Construct a structure whose single child claims more bytes than fit.
+        var inner = Data(count: 16)
+        inner[0] = 0x42; inner[1] = 0x00; inner[2] = 0x02
+        inner[3] = TtlvType.byteString.rawValue
+        inner[4] = 0x00; inner[5] = 0x00; inner[6] = 0x00; inner[7] = 0x09 // length = 9 → padded 16, totalLength=24
+
+        // Outer structure claims only 16 bytes of body (enough for header but not padded body).
+        var outer = Data(count: 8 + 16)
+        outer[0] = 0x42; outer[1] = 0x00; outer[2] = 0x01
+        outer[3] = TtlvType.structure.rawValue
+        outer[4] = 0x00; outer[5] = 0x00; outer[6] = 0x00; outer[7] = 0x10 // length = 16
+        outer.replaceSubrange(8..<24, with: inner)
+        XCTAssertThrowsError(try decodeTTLV(outer)) { error in
+            guard let err = error as? TtlvError else { XCTFail("Expected TtlvError"); return }
+            switch err {
+            case .childExceedsStructure, .lengthExceedsBuffer, .bufferTooShort:
+                break // all acceptable — child cannot fit
+            default:
+                XCTFail("Unexpected error: \(err)")
+            }
+        }
+    }
+
+    func testRejectsStructureWithTooManyChildren() throws {
+        // Build a structure containing 10,001 empty-integer children.
+        // Each child: header 8 + length=4 → padded 8 → totalLength = 16.
+        var body = Data()
+        body.reserveCapacity(16 * 10_001)
+        for _ in 0..<10_001 {
+            body.append(encodeInteger(tag: 0x420001, value: 0))
+        }
+        let outer = encodeTTLV(tag: 0x420002, type: TtlvType.structure.rawValue, value: body)
+        XCTAssertThrowsError(try decodeTTLV(outer)) { error in
+            if let err = error as? TtlvError, case .tooManyChildren = err { return }
+            XCTFail("Expected tooManyChildren, got \(error)")
+        }
+    }
+
+    func testRejectsInvalidUTF8InTextString() {
+        // Build a TextString whose bytes are not valid UTF-8.
+        let bad = Data([0xFF, 0xFE, 0xFD, 0xFC]) // lone continuation/start bytes
+        let encoded = encodeTTLV(tag: 0x420055, type: TtlvType.textString.rawValue, value: bad)
+        XCTAssertThrowsError(try decodeTTLV(encoded)) { error in
+            if let err = error as? TtlvError, case .invalidUTF8 = err { return }
+            XCTFail("Expected invalidUTF8, got \(error)")
+        }
+    }
+
+    func testDecoderDoesNotCrashOnRandomBytes() {
+        // Property-style spot check: feed random 8–64 byte buffers; must never trap.
+        var rng = SystemRandomNumberGenerator()
+        for _ in 0..<200 {
+            let len = Int.random(in: 8...64, using: &rng)
+            var bytes = [UInt8](repeating: 0, count: len)
+            for i in 0..<len { bytes[i] = UInt8.random(in: 0...255, using: &rng) }
+            // Any TtlvError is fine; a successful decode is also fine. A trap would crash the test runner.
+            _ = try? decodeTTLV(Data(bytes))
+        }
+        XCTAssertTrue(true)
+    }
+
     // MARK: - Helper
 
     private func readLengthField(_ data: Data) -> UInt32 {

@@ -32,7 +32,14 @@ public class KmipClient {
     public let host: String
     public let port: Int
     public let timeout: TimeInterval
+    #if DEBUG
+    /// DEBUG-only: disables server certificate verification for local test rigs.
+    /// This property does not exist in release builds and cannot be toggled in production.
     public let insecureSkipVerify: Bool
+    #else
+    /// Always false in release builds — retained for source compatibility.
+    public var insecureSkipVerify: Bool { false }
+    #endif
 
     private let clientCertPath: String
     private let clientKeyPath: String
@@ -42,7 +49,8 @@ public class KmipClient {
     private var outputStream: OutputStream?
     private var isConnected = false
 
-    /// Initialize the KMIP client.
+    #if DEBUG
+    /// Initialize the KMIP client. (DEBUG builds accept `insecureSkipVerify`.)
     ///
     /// - Parameters:
     ///   - host: KMIP server hostname.
@@ -51,7 +59,8 @@ public class KmipClient {
     ///   - clientKey: Path to client private key PEM file.
     ///   - caCert: Path to CA certificate PEM file (optional, uses system roots if not set).
     ///   - timeout: Connection timeout in seconds (default 10).
-    ///   - insecureSkipVerify: DANGER: disables server certificate verification (default false).
+    ///   - insecureSkipVerify: DEBUG-only: disables server certificate verification.
+    ///     Emits a stderr warning when enabled. Not available in release builds.
     public init(
         host: String,
         clientCert: String,
@@ -68,7 +77,38 @@ public class KmipClient {
         self.clientCertPath = clientCert
         self.clientKeyPath = clientKey
         self.caCertPath = caCert
+        if insecureSkipVerify {
+            FileHandle.standardError.write(Data(
+                "CypheraKmip: WARNING — insecureSkipVerify=true. TLS certificate validation is DISABLED. DEBUG builds only.\n".utf8
+            ))
+        }
     }
+    #else
+    /// Initialize the KMIP client.
+    ///
+    /// - Parameters:
+    ///   - host: KMIP server hostname.
+    ///   - port: KMIP server port (default 5696).
+    ///   - clientCert: Path to client certificate PEM file.
+    ///   - clientKey: Path to client private key PEM file.
+    ///   - caCert: Path to CA certificate PEM file (optional, uses system roots if not set).
+    ///   - timeout: Connection timeout in seconds (default 10).
+    public init(
+        host: String,
+        clientCert: String,
+        clientKey: String,
+        port: Int = 5696,
+        caCert: String? = nil,
+        timeout: TimeInterval = 10
+    ) {
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.clientCertPath = clientCert
+        self.clientKeyPath = clientKey
+        self.caCertPath = caCert
+    }
+    #endif
 
     // MARK: - Core Operations (Create, Locate, Get, Activate, Destroy)
 
@@ -592,9 +632,11 @@ public class KmipClient {
             kCFStreamSSLPeerName as String: host,
         ]
 
+        #if DEBUG
         if insecureSkipVerify {
             sslSettings[kCFStreamSSLValidatesCertificateChain as String] = false
         }
+        #endif
 
         input.setProperty(sslSettings, forKey: .init(kCFStreamPropertySSLSettings as String))
         output.setProperty(sslSettings, forKey: .init(kCFStreamPropertySSLSettings as String))

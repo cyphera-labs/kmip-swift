@@ -139,6 +139,14 @@ public func encodeDateTime(tag: UInt32, value: Int64) -> Data {
 /// Maximum nesting depth for TTLV structures.
 private let maxDecodeDepth = 32
 
+/// Maximum length accepted for a single TTLV item's declared length field.
+/// Larger values are rejected before any arithmetic is performed to avoid overflow.
+/// Matches the 16 MiB response ceiling in KmipClient.
+private let maxItemLength = 16 * 1024 * 1024
+
+/// Maximum number of direct children permitted in a Structure node.
+private let maxStructureChildren = 10_000
+
 /// Decode a TTLV buffer into a parsed tree.
 public func decodeTTLV(_ buf: Data, offset: Int = 0) throws -> TtlvItem {
     return try decodeTTLVDepth(buf, offset: offset, depth: 0)
@@ -149,23 +157,35 @@ private func decodeTTLVDepth(_ buf: Data, offset: Int, depth: Int) throws -> Ttl
         throw TtlvError.maxDepthExceeded
     }
 
-    guard buf.count - offset >= 8 else {
+    guard offset >= 0, buf.count - offset >= 8 else {
         throw TtlvError.bufferTooShort
     }
 
-    let tag: UInt32 = (UInt32(buf[offset]) << 16) | (UInt32(buf[offset + 1]) << 8) | UInt32(buf[offset + 2])
-    let type = buf[offset + 3]
-    let length = Int(
-        (UInt32(buf[offset + 4]) << 24) |
-        (UInt32(buf[offset + 5]) << 16) |
-        (UInt32(buf[offset + 6]) << 8) |
-        UInt32(buf[offset + 7])
-    )
+    let base = buf.startIndex + offset
+    let tag: UInt32 = (UInt32(buf[base]) << 16) | (UInt32(buf[base + 1]) << 8) | UInt32(buf[base + 2])
+    let type = buf[base + 3]
+    let rawLength: UInt32 =
+        (UInt32(buf[base + 4]) << 24) |
+        (UInt32(buf[base + 5]) << 16) |
+        (UInt32(buf[base + 6]) << 8) |
+        UInt32(buf[base + 7])
+
+    // Reject lengths that would overflow Int or exceed any plausible message size
+    // before doing any padding arithmetic.
+    guard rawLength <= UInt32(maxItemLength) else {
+        throw TtlvError.lengthExceedsLimit(declared: Int64(rawLength), limit: maxItemLength)
+    }
+    let length = Int(rawLength)
     let padded = ((length + 7) / 8) * 8
     let totalLength = 8 + padded
     let valueStart = offset + 8
 
-    // Bounds check: ensure declared length fits within buffer.
+    // Bounds check: ensure declared (padded) length fits within buffer and
+    // valueStart + padded does not overflow.
+    let (valueEndUnpadded, endOverflow) = valueStart.addingReportingOverflow(length)
+    guard !endOverflow else {
+        throw TtlvError.integerOverflow
+    }
     guard valueStart + padded <= buf.count else {
         throw TtlvError.lengthExceedsBuffer(declared: length, available: buf.count - valueStart)
     }
@@ -176,43 +196,71 @@ private func decodeTTLVDepth(_ buf: Data, offset: Int, depth: Int) throws -> Ttl
     case TtlvType.structure.rawValue:
         var children: [TtlvItem] = []
         var pos = valueStart
-        let end = valueStart + length
+        let end = valueEndUnpadded
         while pos < end {
             let child = try decodeTTLVDepth(buf, offset: pos, depth: depth + 1)
+            let (newPos, posOverflow) = pos.addingReportingOverflow(child.totalLength)
+            guard !posOverflow, newPos <= end else {
+                throw TtlvError.childExceedsStructure
+            }
+            guard children.count < maxStructureChildren else {
+                throw TtlvError.tooManyChildren(limit: maxStructureChildren)
+            }
             children.append(child)
-            pos += child.totalLength
+            pos = newPos
         }
         value = .structure(children)
 
     case TtlvType.integer.rawValue:
-        let raw = readInt32BE(buf, offset: valueStart)
+        guard length == 4 else {
+            throw TtlvError.invalidLength(type: type, expected: 4, actual: length)
+        }
+        let raw = try readInt32BE(buf, offset: valueStart)
         value = .integer(raw)
 
     case TtlvType.longInteger.rawValue:
-        let raw = readInt64BE(buf, offset: valueStart)
+        guard length == 8 else {
+            throw TtlvError.invalidLength(type: type, expected: 8, actual: length)
+        }
+        let raw = try readInt64BE(buf, offset: valueStart)
         value = .longInteger(raw)
 
     case TtlvType.enumeration.rawValue:
-        let raw = readUInt32BE(buf, offset: valueStart)
+        guard length == 4 else {
+            throw TtlvError.invalidLength(type: type, expected: 4, actual: length)
+        }
+        let raw = try readUInt32BE(buf, offset: valueStart)
         value = .enumeration(raw)
 
     case TtlvType.boolean.rawValue:
-        let raw = readInt64BE(buf, offset: valueStart)
+        guard length == 8 else {
+            throw TtlvError.invalidLength(type: type, expected: 8, actual: length)
+        }
+        let raw = try readInt64BE(buf, offset: valueStart)
         value = .boolean(raw != 0)
 
     case TtlvType.textString.rawValue:
-        let strData = buf.subdata(in: valueStart..<(valueStart + length))
-        value = .textString(String(data: strData, encoding: .utf8) ?? "")
+        let strStart = buf.startIndex + valueStart
+        let strData = buf.subdata(in: strStart..<(strStart + length))
+        guard let str = String(data: strData, encoding: .utf8) else {
+            throw TtlvError.invalidUTF8(offset: valueStart)
+        }
+        value = .textString(str)
 
     case TtlvType.byteString.rawValue:
-        value = .byteString(buf.subdata(in: valueStart..<(valueStart + length)))
+        let bsStart = buf.startIndex + valueStart
+        value = .byteString(buf.subdata(in: bsStart..<(bsStart + length)))
 
     case TtlvType.dateTime.rawValue:
-        let raw = readInt64BE(buf, offset: valueStart)
+        guard length == 8 else {
+            throw TtlvError.invalidLength(type: type, expected: 8, actual: length)
+        }
+        let raw = try readInt64BE(buf, offset: valueStart)
         value = .dateTime(raw)
 
     default:
-        value = .raw(buf.subdata(in: valueStart..<(valueStart + length)))
+        let rawStart = buf.startIndex + valueStart
+        value = .raw(buf.subdata(in: rawStart..<(rawStart + length)))
     }
 
     return TtlvItem(tag: tag, type: type, value: value, length: length, totalLength: totalLength)
@@ -232,38 +280,56 @@ public func findChildren(_ decoded: TtlvItem, tag: UInt32) -> [TtlvItem] {
 
 // MARK: - Errors
 
-public enum TtlvError: Error {
+public enum TtlvError: Error, Equatable {
     case bufferTooShort
     case lengthExceedsBuffer(declared: Int, available: Int)
+    case lengthExceedsLimit(declared: Int64, limit: Int)
     case maxDepthExceeded
+    case invalidLength(type: UInt8, expected: Int, actual: Int)
+    case invalidUTF8(offset: Int)
+    case integerOverflow
+    case childExceedsStructure
+    case tooManyChildren(limit: Int)
 }
 
 // MARK: - Helpers
 
-private func readInt32BE(_ data: Data, offset: Int) -> Int32 {
-    let raw: UInt32 = (UInt32(data[offset]) << 24) |
-        (UInt32(data[offset + 1]) << 16) |
-        (UInt32(data[offset + 2]) << 8) |
-        UInt32(data[offset + 3])
+private func readInt32BE(_ data: Data, offset: Int) throws -> Int32 {
+    let base = data.startIndex + offset
+    guard offset >= 0, offset + 3 < data.count else {
+        throw TtlvError.bufferTooShort
+    }
+    let raw: UInt32 = (UInt32(data[base]) << 24) |
+        (UInt32(data[base + 1]) << 16) |
+        (UInt32(data[base + 2]) << 8) |
+        UInt32(data[base + 3])
     return Int32(bitPattern: raw)
 }
 
-private func readUInt32BE(_ data: Data, offset: Int) -> UInt32 {
-    return (UInt32(data[offset]) << 24) |
-        (UInt32(data[offset + 1]) << 16) |
-        (UInt32(data[offset + 2]) << 8) |
-        UInt32(data[offset + 3])
+private func readUInt32BE(_ data: Data, offset: Int) throws -> UInt32 {
+    let base = data.startIndex + offset
+    guard offset >= 0, offset + 3 < data.count else {
+        throw TtlvError.bufferTooShort
+    }
+    return (UInt32(data[base]) << 24) |
+        (UInt32(data[base + 1]) << 16) |
+        (UInt32(data[base + 2]) << 8) |
+        UInt32(data[base + 3])
 }
 
-private func readInt64BE(_ data: Data, offset: Int) -> Int64 {
+private func readInt64BE(_ data: Data, offset: Int) throws -> Int64 {
+    let base = data.startIndex + offset
+    guard offset >= 0, offset + 7 < data.count else {
+        throw TtlvError.bufferTooShort
+    }
     var raw: UInt64 = 0
-    raw |= UInt64(data[offset])     << 56
-    raw |= UInt64(data[offset + 1]) << 48
-    raw |= UInt64(data[offset + 2]) << 40
-    raw |= UInt64(data[offset + 3]) << 32
-    raw |= UInt64(data[offset + 4]) << 24
-    raw |= UInt64(data[offset + 5]) << 16
-    raw |= UInt64(data[offset + 6]) << 8
-    raw |= UInt64(data[offset + 7])
+    raw |= UInt64(data[base])     << 56
+    raw |= UInt64(data[base + 1]) << 48
+    raw |= UInt64(data[base + 2]) << 40
+    raw |= UInt64(data[base + 3]) << 32
+    raw |= UInt64(data[base + 4]) << 24
+    raw |= UInt64(data[base + 5]) << 16
+    raw |= UInt64(data[base + 6]) << 8
+    raw |= UInt64(data[base + 7])
     return Int64(bitPattern: raw)
 }
